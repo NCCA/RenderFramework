@@ -21,8 +21,9 @@ public :
   void bind();
   void unbind() ;
   GLuint id() const {return m_id;}
-  void attatchRenderDepthBuffer();
+  void attatchDepthBuffer();
   void attatchStencilBuffer();
+  void attatchDepthAndStencilBuffer();
   void attatchRenderBuffer(GLenum _type);
   bool hasStencilBuffer() const {return m_hasStencilBuffer;}
   bool hasDepthBuffer() const { return m_hasDepthBuffer; }

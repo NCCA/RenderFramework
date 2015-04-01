@@ -28,7 +28,8 @@ NGLScene::NGLScene(QWindow *_parent) : OpenGLWindow(_parent)
   m_spinYFace=0.0f;
   setTitle("Qt5 Simple NGL Demo");
   m_buffer=0;
- 
+  m_rot=0.0f;
+   m_freq=1.0;
 }
 
 
@@ -61,7 +62,7 @@ void NGLScene::initialize()
   // gl commands from the lib, if this is not done program will crash
   ngl::NGLInit::instance();
 
-  glClearColor(0.4f, 0.4f, 0.4f, 1.0f);			   // Grey Background
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);			   // Grey Background
   // enable depth testing for drawing
   glEnable(GL_DEPTH_TEST);
   // enable multisampling for smoother drawing
@@ -85,7 +86,48 @@ void NGLScene::initialize()
   shader->attachShaderToProgram("Pass1","Pass1Fragment");
 
   shader->linkProgramObject("Pass1");
-  shader->use("Pass1");
+
+
+  // we are creating a shader for Pass 1
+  shader->createShaderProgram("LightPass");
+  // now we are going to create empty shaders for Frag and Vert
+  shader->attachShader("LightingPassVertex",ngl::VERTEX);
+  shader->attachShader("LightingPassFragment",ngl::FRAGMENT);
+  // attach the source
+  shader->loadShaderSource("LightingPassVertex","shaders/LightingPassVert.glsl");
+  shader->loadShaderSource("LightingPassFragment","shaders/LightingPassFrag.glsl");
+  // compile the shaders
+  shader->compileShader("LightingPassVertex");
+  shader->compileShader("LightingPassFragment");
+  // add them to the program
+  shader->attachShaderToProgram("LightPass","LightingPassVertex");
+  shader->attachShaderToProgram("LightPass","LightingPassFragment");
+
+  shader->linkProgramObject("LightPass");
+  shader->use("LightPass");
+  shader->setShaderParam1i("pointTex",0);
+  shader->setShaderParam1i("normalTex",1);
+  shader->setShaderParam1i("colourTex",2);
+
+//
+  // we are creating a shader for Pass 1
+  shader->createShaderProgram("null");
+  // now we are going to create empty shaders for Frag and Vert
+  shader->attachShader("nullVertex",ngl::VERTEX);
+  shader->attachShader("nullFragment",ngl::FRAGMENT);
+  // attach the source
+  shader->loadShaderSource("nullVertex","shaders/NullVertex.glsl");
+  shader->loadShaderSource("nullFragment","shaders/NullFragment.glsl");
+  // compile the shaders
+  shader->compileShader("nullVertex");
+  shader->compileShader("nullFragment");
+  // add them to the program
+  shader->attachShaderToProgram("null","nullVertex");
+  shader->attachShaderToProgram("null","nullFragment");
+
+  shader->linkProgramObject("null");
+
+
 
   // as re-size is not explicitly called we need to do this.
   // set the viewport for openGL we need to take into account retina display
@@ -93,18 +135,20 @@ void NGLScene::initialize()
   glViewport(0,0,width()*devicePixelRatio(),height()*devicePixelRatio());
   m_framebuffer = new FrameBuffer(width()*devicePixelRatio(),height()*devicePixelRatio());
   m_framebuffer->bind();
-  m_framebuffer->attatchRenderDepthBuffer();
+  //m_framebuffer->attatchDepthBuffer();
   //m_framebuffer->attatchStencilBuffer();
+  m_framebuffer->attatchDepthAndStencilBuffer();
   m_framebuffer->attatchTexture("point");
   m_framebuffer->attatchTexture("normal");
   m_framebuffer->attatchTexture("colour");
   m_framebuffer->attatchTexture("shading");
+  m_framebuffer->attatchTexture("final");
   m_framebuffer->debug();
   m_framebuffer->unbind();
   ngl::VAOPrimitives *prim=ngl::VAOPrimitives::instance();
   prim->createSphere("sphere",0.5,50);
 
-  prim->createSphere("lightSphere",0.1,10);
+  prim->createSphere("lightSphere",1.0,20);
   prim->createCylinder("cylinder",0.5,1.4,40,40);
 
   prim->createCone("cone",0.5,1.4,20,20);
@@ -123,7 +167,7 @@ void NGLScene::initialize()
   // set the shape using FOV 45 Aspect Ratio based on Width and Height
   // The final two are near and far clipping planes of 0.5 and 10
   m_cam->setShape(45,(float)float(width()/height()),0.05,350);
-
+  startTimer(10);
 }
 
 
@@ -155,21 +199,26 @@ void NGLScene::render()
 
   m_framebuffer->bind();
   m_framebuffer->setDrawBuffers();
-  glActiveTexture (GL_TEXTURE0);
-  glBindTexture (GL_TEXTURE_2D, m_framebuffer->getTextureID("point"));
-  glActiveTexture (GL_TEXTURE1);
-  glBindTexture (GL_TEXTURE_2D, m_framebuffer->getTextureID("normal"));
-  glActiveTexture (GL_TEXTURE2);
-  glBindTexture (GL_TEXTURE_2D, m_framebuffer->getTextureID("colour"));
-  glActiveTexture (GL_TEXTURE3);
-  glBindTexture (GL_TEXTURE_2D, m_framebuffer->getTextureID("shading"));
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   //glViewport(0,0,m_framebuffer->width(),m_framebuffer->height());
+
+  // Only the geometry pass updates the depth buffer
+  glDepthMask(GL_TRUE);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+  glEnable(GL_DEPTH_TEST);
+  glDisable(GL_CULL_FACE);
   drawScene("Pass1");
 
+  glDepthMask(GL_FALSE);
+  glEnable(GL_STENCIL_TEST);
 
+  stencilPass();
+  lightPass();
   m_framebuffer->unbind();
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glDisable(GL_STENCIL_TEST);
+
+
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -178,8 +227,8 @@ void NGLScene::render()
   glReadBuffer(GL_COLOR_ATTACHMENT0+m_buffer);
   int w=width()*devicePixelRatio();
   int h=height()*devicePixelRatio();
-  std::cout<<m_framebuffer->width()<<" "<<m_framebuffer->height()<<"\n";
-  glBlitFramebuffer(0, 0, m_framebuffer->width(),m_framebuffer->height(), 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+  glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
 
 }
@@ -290,6 +339,9 @@ void NGLScene::keyPressEvent(QKeyEvent *_event)
   case Qt::Key_2 : m_buffer=1; break;
   case Qt::Key_3 : m_buffer=2; break;
   case Qt::Key_4 : m_buffer=3; break;
+  case Qt::Key_5 : m_buffer=4; break;
+  case Qt::Key_I : m_freq+=1; break;
+  case Qt::Key_O : m_freq-=1; break;
 
   default : break;
   }
@@ -488,4 +540,135 @@ void NGLScene::drawScene(const std::string &_shader)
 
 
 glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+}
+
+void NGLScene::loadLightShader(const ngl::Vec3 &_pos, float _intensity)
+{
+//  ngl::Transformation t;
+//  t.setScale(2.0,2.0,2.0);
+//  t.setPosition(_pos);
+
+  ngl::ShaderLib *shader= ngl::ShaderLib::instance();
+  shader->use("LightPass");
+
+  ngl::Mat4 MVP=m_stack.top()*m_mouseGlobalTX*m_cam->getVPMatrix();
+  shader->setShaderParamFromMat4("MVP",MVP);
+  shader->setShaderParam3f("cam",m_cam->getEye().m_x,m_cam->getEye().m_y,m_cam->getEye().m_z);
+
+  shader->setShaderParam1f("lightI",_intensity);
+  shader->setShaderParam3f("lightPos",_pos.m_x,_pos.m_y,_pos.m_z);
+ // shader->setShaderParamFromMat4("V",m_cam->getViewMatrix());
+  shader->setShaderParam2f("wh",m_framebuffer->width(),m_framebuffer->height());
+}
+
+
+
+void NGLScene::loadNullShader(const ngl::Vec3 &_pos,float _intensity)
+{
+//  ngl::Transformation t;
+//  t.setScale(2.0,2.0,2.0);
+//  t.setPosition(_pos);
+
+  ngl::ShaderLib *shader= ngl::ShaderLib::instance();
+  shader->use("null");
+  ngl::Mat4 MVP=m_stack.top()*m_mouseGlobalTX*m_cam->getVPMatrix();
+  shader->setShaderParamFromMat4("MVP",MVP);
+}
+
+
+void NGLScene::lightPass()
+{
+  glDrawBuffer(GL_COLOR_ATTACHMENT3);
+ // m_framebuffer->setDrawBuffers();
+  glStencilFunc(GL_NOTEQUAL, 0, 0xFF);
+
+  glDisable(GL_DEPTH_TEST);
+  glEnable(GL_BLEND);
+  glBlendEquation(GL_FUNC_ADD);
+  glBlendFunc(GL_ONE, GL_ONE);
+
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_FRONT);
+
+
+
+  glActiveTexture (GL_TEXTURE0);
+  glBindTexture (GL_TEXTURE_2D, m_framebuffer->getTextureID("point"));
+  glActiveTexture (GL_TEXTURE1);
+  glBindTexture (GL_TEXTURE_2D, m_framebuffer->getTextureID("normal"));
+  glActiveTexture (GL_TEXTURE2);
+  glBindTexture (GL_TEXTURE_2D, m_framebuffer->getTextureID("colour"));
+  glActiveTexture (GL_TEXTURE3);
+  glBindTexture (GL_TEXTURE_2D, m_framebuffer->getTextureID("shading"));
+  drawLights(RENDER);
+
+  glCullFace(GL_BACK);
+
+  glDisable(GL_BLEND);
+
+}
+
+void NGLScene::stencilPass()
+{
+  glDrawBuffer(GL_NONE);
+  glEnable(GL_DEPTH_TEST);
+
+  glDisable(GL_CULL_FACE);
+
+  glClear(GL_STENCIL_BUFFER_BIT);
+
+  // We need the stencil test to be enabled but we want it
+  // to succeed always. Only the depth test matters.
+  glStencilFunc(GL_ALWAYS, 0, 0);
+
+  glStencilOpSeparate(GL_BACK, GL_KEEP, GL_INCR_WRAP, GL_KEEP);
+  glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_DECR_WRAP, GL_KEEP);
+
+  drawLights(STENCIL);
+}
+
+
+void NGLScene::drawLights(LightMode _mode)
+{
+  ngl::VAOPrimitives *prim=ngl::VAOPrimitives::instance();
+  float zz=2.0;
+  m_stack.pushMatrix();
+  m_stack.scale(16,16,16);
+  if(_mode==STENCIL)
+    loadNullShader(ngl::Vec3(0,2,0),0.4);
+  else
+    loadLightShader(ngl::Vec3(0,2,0),0.2);
+  prim->draw("cube");
+  m_stack.popMatrix();
+
+
+
+  for(float i=0; i<2*M_PI; i+=0.1)
+  {
+    m_stack.pushMatrix();
+
+      float x=cos(i)*zz;
+      float z=sin(i)*zz;
+      float y=sin(i*m_freq)*zz;
+
+      m_stack.rotate(m_rot,0,1,0);
+      m_stack.translate(x,y,z);
+      m_stack.pushMatrix();
+      m_stack.scale(0.05,0.05,0.05);
+
+        if(_mode==STENCIL)
+          loadNullShader(ngl::Vec3(x,y,z),0.1);
+        else
+          loadLightShader(ngl::Vec3(x,y,z),0.8);
+        prim->draw("lightSphere");
+      m_stack.popMatrix();
+    m_stack.popMatrix();
+  }
+
+}
+
+void NGLScene::timerEvent(QTimerEvent *_event)
+{
+  m_rot+=0.5f;
+  renderLater();
 }

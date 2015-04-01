@@ -1,154 +1,132 @@
-#ifndef NGLSCENE_H__
-#define NGLSCENE_H__
-#include "OpenGLWindow.h"
-#include <ngl/Camera.h>
-#include <ngl/Colour.h>
-#include <ngl/Light.h>
-#include <ngl/Text.h>
-#include <ngl/Transformation.h>
-#include "FrameBuffer.h"
-#include "MatrixStack.h"
+#ifndef MATRIXSTACK_H__
+#define MATRIXSTACK_H__
+#include <ngl/Mat4.h>
+#include <vector>
 //----------------------------------------------------------------------------------------------------------------------
-/// @file NGLScene.h
-/// @brief this class inherits from the Qt OpenGLWindow and allows us to use NGL to draw OpenGL
-/// @author Jonathan Macey
-/// @version 1.0
-/// @date 10/9/13
-/// Revision History :
-/// This is an initial version used for the new NGL6 / Qt 5 demos
-/// @class NGLScene
-/// @brief our main glwindow widget for NGL applications all drawing elements are
-/// put in this file
+/// @brief Simple Matrix Stack for Old school OpenGL
+/// transformations in a modern GL context
 //----------------------------------------------------------------------------------------------------------------------
 
-class NGLScene : public OpenGLWindow
+class MatrixStack
 {
-  public:
+  public :
     //----------------------------------------------------------------------------------------------------------------------
-    /// @brief ctor for our NGL drawing class
-    /// @param [in] parent the parent window to the class
+    /// @brief ctor can set depth
+    /// @param _depth stack size default 40
     //----------------------------------------------------------------------------------------------------------------------
-    NGLScene(QWindow *_parent=0);
+    MatrixStack(int _depth=40) :
+                                m_stack(_depth),
+                                m_top(0),
+                                m_depth(_depth)
+                                {}
     //----------------------------------------------------------------------------------------------------------------------
-    /// @brief dtor must close down ngl and release OpenGL resources
+    /// @brief push the current value of top onto
+    /// the stack
     //----------------------------------------------------------------------------------------------------------------------
-    ~NGLScene();
+    void pushMatrix();
     //----------------------------------------------------------------------------------------------------------------------
-    /// @brief the initialize class is called once when the window is created and we have a valid GL context
-    /// use this to setup any default GL stuff
+    /// @brief pop the current top of stack and replace
+    /// with last
     //----------------------------------------------------------------------------------------------------------------------
-    void initialize();
+    void popMatrix();
     //----------------------------------------------------------------------------------------------------------------------
-    /// @brief this is called everytime we want to draw the scene
+    /// @brief similar to glIdentity() will reset top of stack (but not view)
     //----------------------------------------------------------------------------------------------------------------------
-    void render();
-
-private:
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief used to store the x rotation mouse value
-    //----------------------------------------------------------------------------------------------------------------------
-    int m_spinXFace;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief used to store the y rotation mouse value
-    //----------------------------------------------------------------------------------------------------------------------
-    int m_spinYFace;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief flag to indicate if the mouse button is pressed when dragging
-    //----------------------------------------------------------------------------------------------------------------------
-    bool m_rotate;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief flag to indicate if the Right mouse button is pressed when dragging
-    //----------------------------------------------------------------------------------------------------------------------
-    bool m_translate;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief the previous x mouse value
-    //----------------------------------------------------------------------------------------------------------------------
-    int m_origX;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief the previous y mouse value
-    //----------------------------------------------------------------------------------------------------------------------
-    int m_origY;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief the previous x mouse value for Position changes
-    //----------------------------------------------------------------------------------------------------------------------
-    int m_origXPos;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief the previous y mouse value for Position changes
-    //----------------------------------------------------------------------------------------------------------------------
-    int m_origYPos;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief used to store the global mouse transforms
-    //----------------------------------------------------------------------------------------------------------------------
-    ngl::Mat4 m_mouseGlobalTX;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief Our Camera
-    //----------------------------------------------------------------------------------------------------------------------
-    ngl::Camera *m_cam;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief the model position for mouse movement
-    //----------------------------------------------------------------------------------------------------------------------
-    ngl::Vec3 m_modelPos;
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief method to load transform matrices to the shader
-    //----------------------------------------------------------------------------------------------------------------------
-    void loadMatricesToShader();
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief Qt Event called when the window is re-sized
-    /// @param [in] _event the Qt event to query for size etc
-    //----------------------------------------------------------------------------------------------------------------------
-    void resizeEvent(QResizeEvent *_event);
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief Qt Event called when a key is pressed
-    /// @param [in] _event the Qt event to query for size etc
-    //----------------------------------------------------------------------------------------------------------------------
-    void keyPressEvent(QKeyEvent *_event);
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief this method is called every time a mouse is moved
-    /// @param _event the Qt Event structure
-    //----------------------------------------------------------------------------------------------------------------------
-    void mouseMoveEvent (QMouseEvent * _event );
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief this method is called everytime the mouse button is pressed
-    /// inherited from QObject and overridden here.
-    /// @param _event the Qt Event structure
-    //----------------------------------------------------------------------------------------------------------------------
-    void mousePressEvent ( QMouseEvent *_event);
-    //----------------------------------------------------------------------------------------------------------------------
-    /// @brief this method is called everytime the mouse button is released
-    /// inherited from QObject and overridden here.
-    /// @param _event the Qt Event structure
-    //----------------------------------------------------------------------------------------------------------------------
-    void mouseReleaseEvent ( QMouseEvent *_event );
+    void identity(){m_stack[m_top].identity(); }
 
     //----------------------------------------------------------------------------------------------------------------------
-    /// @brief this method is called everytime the mouse wheel is moved
-    /// inherited from QObject and overridden here.
-    /// @param _event the Qt Event structure
+    /// @brief return the matrix at the top of the stack
+    /// @returns ngl::Mat4 the current top of stack model
+    /// transform
     //----------------------------------------------------------------------------------------------------------------------
-    void wheelEvent( QWheelEvent *_event);
-    FrameBuffer *m_framebuffer;
-    void drawScene(const std::string &_shader);
-    ngl::Transformation m_transform;
-    int m_buffer;
-    void lightPass();
-    void loadLightShader(const ngl::Vec3 &_pos, float _intensity);
-    void loadNullShader(const ngl::Vec3 &_pos, float _intensity);
-    void stencilPass();
-    enum LightMode{STENCIL,RENDER};
-    void drawLights(LightMode _mode);
-    MatrixStack m_stack;
-    void timerEvent(QTimerEvent *_event);
+    ngl::Mat4 top() const {return m_stack[m_top];}
     //----------------------------------------------------------------------------------------------------------------------
-    /// @brief rotation for sine wave
+    /// @brief set the view matrix which will be post multiplied by current model
+    /// and project matrix
+    /// @param _v the view matrix to use
     //----------------------------------------------------------------------------------------------------------------------
-    ngl::Real m_rot;
+    void setView(const ngl::Mat4 &_v){  m_view=_v; }
     //----------------------------------------------------------------------------------------------------------------------
-    /// @brief frequency for sine wave
+    /// @brief set the projection matrix which will be post multiplied by current model
+    /// and model matrix
+    /// @param _v the view projection matrix to use
     //----------------------------------------------------------------------------------------------------------------------
-    ngl::Real m_freq;
+    void setProjection(const ngl::Mat4 &_p) {m_projection=_p;}
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief create a rotation using x,y,z rolls
+    /// @param _x the x rotation in degrees
+    /// @param _y the x rotation in degrees
+    /// @param _z the x rotation in degrees
+    /// @note this is done as follows
+    ///  ngl::Mat4 final=z*y*x; where each is a rotation matrix
+    //----------------------------------------------------------------------------------------------------------------------
+    void rotate(float _x, float _y, float _z);
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief axis angle rotation like glRotate
+    /// @param _angle the angle of rotation in degrees
+    /// @param _x axis value
+    /// @param _y axis value
+    /// @param _z axis value
+    /// @note this works like glRotate so we could do
+    /// rotate(45,0,1,0) to rotate 45 degrees in the Y
+    //----------------------------------------------------------------------------------------------------------------------
+    void rotate(float _angle,float _x, float _y, float _z);
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief translate similar to glTranslate
+    /// @param _x the x translation
+    /// @param _y the x translation
+    /// @param _z the x translation
+    //----------------------------------------------------------------------------------------------------------------------
+    void translate(float _x, float _y, float _z);
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief scale similar to glScale a uniform scale around the origin
+    /// @param _x the x scale
+    /// @param _y the x scale
+    /// @param _z the x scale
+    //----------------------------------------------------------------------------------------------------------------------
+    void scale(float _x, float _y, float _z);
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief get the Model View Project matrix
+    /// @returns the MVP matrix product
+    //----------------------------------------------------------------------------------------------------------------------
+    ngl::Mat4 MVP()const
+    { return m_stack[m_top]*m_view*m_projection; }
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief get the Model View  matrix
+    /// @returns the MV matrix product
+    //----------------------------------------------------------------------------------------------------------------------
+    ngl::Mat4 MV()const
+    { return m_stack[m_top]*m_view; }
 
+private :
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief make this non-copyable
+    //----------------------------------------------------------------------------------------------------------------------
+    MatrixStack(const MatrixStack &){}
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief make this non-copyable
+    //----------------------------------------------------------------------------------------------------------------------
+    MatrixStack operator=(const MatrixStack &){return *this;}
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief the actual stack
+    //----------------------------------------------------------------------------------------------------------------------
+    std::vector<ngl::Mat4> m_stack;
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief the top of the stack
+    //----------------------------------------------------------------------------------------------------------------------
+    int m_top;
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief the depth of the stack
+    //----------------------------------------------------------------------------------------------------------------------
+    int m_depth;
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief view matrix
+    //----------------------------------------------------------------------------------------------------------------------
+    ngl::Mat4 m_view;
+    //----------------------------------------------------------------------------------------------------------------------
+    /// @brief projection matrix
+    //----------------------------------------------------------------------------------------------------------------------
+    ngl::Mat4 m_projection;
 };
-
-
 
 #endif

@@ -37,7 +37,7 @@ void FrameBuffer::unbind()
   m_bound=false;
 }
 
-void FrameBuffer::attatchRenderDepthBuffer()
+void FrameBuffer::attatchDepthBuffer()
 {
   if(m_bound == false)
   {
@@ -64,7 +64,7 @@ void FrameBuffer::attatchStencilBuffer()
   glGenRenderbuffers(1, &m_stencilBufferID);
   glBindRenderbuffer(GL_RENDERBUFFER, m_stencilBufferID);
 
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL, m_width, m_height);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX16, m_width, m_height);
   m_hasStencilBuffer=true;
   // attatch
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_stencilBufferID);
@@ -72,6 +72,25 @@ void FrameBuffer::attatchStencilBuffer()
   //glBindRenderbuffer(GL_RENDERBUFFER,0);
 
 }
+
+
+ void FrameBuffer::attatchDepthAndStencilBuffer()
+ {
+   if(m_bound == false)
+   {
+     std::cerr<<"Warning attatching Stencil and Depth buffer to unbound Framebuffer\n";
+   }
+   glGenRenderbuffers(1, &m_stencilBufferID);
+   glBindRenderbuffer(GL_RENDERBUFFER, m_stencilBufferID);
+
+   glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_width, m_height);
+   m_hasStencilBuffer=true;
+   // attatch
+   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_stencilBufferID);
+
+   //glBindRenderbuffer(GL_RENDERBUFFER,0);
+ }
+
 
 void FrameBuffer::attatchRenderBuffer(GLenum _type)
 {
