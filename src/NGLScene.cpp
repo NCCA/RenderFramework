@@ -30,6 +30,7 @@ NGLScene::NGLScene(QWindow *_parent) : OpenGLWindow(_parent)
   m_buffer=0;
   m_rot=0.0f;
    m_freq=1.0;
+   m_animate=true;
 }
 
 
@@ -73,8 +74,8 @@ void NGLScene::initialize()
   // we are creating a shader for Pass 1
   shader->createShaderProgram("Pass1");
   // now we are going to create empty shaders for Frag and Vert
-  shader->attachShader("Pass1Vertex",ngl::VERTEX);
-  shader->attachShader("Pass1Fragment",ngl::FRAGMENT);
+  shader->attachShader("Pass1Vertex",ngl::ShaderType::VERTEX);
+  shader->attachShader("Pass1Fragment",ngl::ShaderType::FRAGMENT);
   // attach the source
   shader->loadShaderSource("Pass1Vertex","shaders/Pass1Vert.glsl");
   shader->loadShaderSource("Pass1Fragment","shaders/Pass1Frag.glsl");
@@ -91,8 +92,8 @@ void NGLScene::initialize()
   // we are creating a shader for Pass 1
   shader->createShaderProgram("LightPass");
   // now we are going to create empty shaders for Frag and Vert
-  shader->attachShader("LightingPassVertex",ngl::VERTEX);
-  shader->attachShader("LightingPassFragment",ngl::FRAGMENT);
+  shader->attachShader("LightingPassVertex",ngl::ShaderType::VERTEX);
+  shader->attachShader("LightingPassFragment",ngl::ShaderType::FRAGMENT);
   // attach the source
   shader->loadShaderSource("LightingPassVertex","shaders/LightingPassVert.glsl");
   shader->loadShaderSource("LightingPassFragment","shaders/LightingPassFrag.glsl");
@@ -113,8 +114,8 @@ void NGLScene::initialize()
   // we are creating a shader for Pass 1
   shader->createShaderProgram("null");
   // now we are going to create empty shaders for Frag and Vert
-  shader->attachShader("nullVertex",ngl::VERTEX);
-  shader->attachShader("nullFragment",ngl::FRAGMENT);
+  shader->attachShader("nullVertex",ngl::ShaderType::VERTEX);
+  shader->attachShader("nullFragment",ngl::ShaderType::FRAGMENT);
   // attach the source
   shader->loadShaderSource("nullVertex","shaders/NullVertex.glsl");
   shader->loadShaderSource("nullFragment","shaders/NullFragment.glsl");
@@ -342,6 +343,7 @@ void NGLScene::keyPressEvent(QKeyEvent *_event)
   case Qt::Key_5 : m_buffer=4; break;
   case Qt::Key_I : m_freq+=1; break;
   case Qt::Key_O : m_freq-=1; break;
+  case Qt::Key_Space : m_animate^=true; break;
 
   default : break;
   }
@@ -669,6 +671,7 @@ void NGLScene::drawLights(LightMode _mode)
 
 void NGLScene::timerEvent(QTimerEvent *_event)
 {
+  if(m_animate)
   m_rot+=0.5f;
   renderLater();
 }
