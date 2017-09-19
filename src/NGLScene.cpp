@@ -19,7 +19,7 @@ const static float INCREMENT=0.01f;
 //----------------------------------------------------------------------------------------------------------------------
 const static float ZOOM=0.1f;
 
-NGLScene::NGLScene(QWindow *_parent) : OpenGLWindow(_parent)
+NGLScene::NGLScene(QWindow *_parent) : QOpenGLWindow(_parent)
 {
   // re-size the widget to that of the parent (in this case the GLFrame passed in on construction)
   m_rotate=false;
@@ -57,7 +57,7 @@ void NGLScene::resizeEvent(QResizeEvent *_event )
 }
 
 
-void NGLScene::initialize()
+void NGLScene::initializeLG()
 {
   // we must call this first before any other GL commands to load and link the
   // gl commands from the lib, if this is not done program will crash
@@ -191,7 +191,7 @@ void NGLScene::loadMatricesToShader()
   shader->setShaderParamFromMat4("MV",MV);
 }
 
-void NGLScene::render()
+void NGLScene::paintGL()
 {
   // clear the screen and depth buffer
 
